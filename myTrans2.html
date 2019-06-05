@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">    
+    <meta name="msapplication-TileColor" content="#ffffff">
+    <meta name="theme-color" content="#ffffff">
+
+    <title>Realtime Translator</title>
+    <style type="text/css">
+        button, input, select, textarea {
+            /* font-family : inherit; */
+            font-family: 'Noto Sans', 'M+ 2p black','メイリオ', Meiryo,sans-serif;
+            font-size   : 300%;
+            color  : black;
+            font-weight : 900;
+            text-align  : center;       /* left, center, right */
+            vertical-align : top;    /* top, middle, bottom */
+            -webkit-text-stroke-color: rgb(28, 141, 0);
+            -webkit-text-stroke-width: 0px;
+        }
+
+        html {
+            height: 100%;
+            width: 100%;
+        }
+
+        body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+        }
+    </style>
+
+    <script>
+        // windowを読み込んだら音声認識が開始される --------------
+        window.onload = function(){
+            vr_function();
+        }
+
+        // 字幕削除タイマーの有無を保持する 
+        var recogTimeoutId = null
+        var transTimeoutId = null
+
+      　// Google翻訳に投げるときは別プロセスにしておくための関数
+        var translation = function(request, results, gas_key, TRANS_URL, trans_destlang, trans_sourcelang, i) {
+	    recog_text = results[i][0].transcript;
+	    console.log("onresultfinal");
+
+            query = TRANS_URL + '?text=' + recog_text + '&target=' + trans_destlang + '&source=' + trans_sourcelang;
+            request.open('GET', query, true);
+
+            request.onreadystatechange = function(){
+                if (request.readyState === 4 && request.status === 200){
+                    // document.getElementById('speech_text').innerHTML = recog_text;
+		    var response_text = request.responseText
+                    document.getElementById('trans_text').innerHTML = response_text;
+
+		    // 翻訳字幕が残ってる時は前の翻訳字幕削除タイマーを消しておく
+		    if (transTimeoutId != null){
+			clearTimeout(transTimeoutId)			
+		    };
+		    // 翻訳字幕削除タイマー
+		    transTimeoutId = setTimeout(trans_clear_text, 250*response_text.length);
+		    recogTimeoutId = setTimeout(recog_clear_text, 250*response_text.length);
+                } 
+            }
+            request.send(null);	    
+        }
+
+        // 字幕削除関数
+        var trans_clear_text = function(){
+	    document.getElementById('trans_text').innerHTML = '';
+	    transTimeoutId = null
+        }
+        var recog_clear_text = function(){
+	    document.getElementById('speech_text').innerHTML = '';
+	    recogTimeoutId = null
+        }
+      
+        function vr_function() {
+            window.SpeechRecognition = window.SpeechRecognition || webkitSpeechRecognition;
+
+            // 音声認識用設定 ----------------------
+            var recognition = new webkitSpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = true;
+            recognition.continuous = true;
+            var recog_text = '';
+            var trans_text = '';
+
+            // 翻訳用設定 ---------------------------
+            var trans_sourcelang = 'en';
+            var trans_destlang = 'ja';
+
+	    // Google Apps Scriptのキー
+	    var gas_key = "AKfycbxXnHC-M0qu6b-pwmEuIt7Cq4f2IjKF34QHHi15_J-fbubCnc1s"
+            
+            var TRANS_URL = 'https://script.google.com/macros/s/' + gas_key + '/exec';
+            var query = ''
+
+            ///////////////////////////////////////////////////////////
+            // 各種イベントへの対応 ---------------------------------
+            recognition.onsoundstart = function(){
+		console.log("onspeechstart");
+            };
+            recognition.onnomatch = function(){
+		console.log("onnomatch");
+            };
+            recognition.onerror= function(){
+		console.log("onerror");
+            };
+            recognition.onsoundend = function(){
+		console.log("onsoundend");
+            };
+            recognition.onspeechend = function(){
+		console.log("onspeechend");
+            };
+	    recognition.onend = function(){
+		console.log("onend");
+		recognition.start();
+	    };
+ 
+            /////////////////////////////////////////////////////////
+            // API用設定 ---------------------------
+            var request = new XMLHttpRequest();
+ 
+            // 認識結果が返ってきたとき ------------------
+            recognition.onresult = function(event) {
+		console.log("onresult")
+		// console.log(event.results)
+                var results = event.results;
+		var speechText = ''
+                 for (var i = event.resultIndex; i < results.length; i++) {
+                    if (results[i].isFinal)
+                    {
+			setTimeout(translation, 0, request, results, gas_key, TRANS_URL, trans_destlang, trans_sourcelang, i)
+                    }
+                    else
+                    {
+                        // document.getElementById('speech_text').innerHTML = "<< " + results[i][0].transcript + " >>";
+			if (recogTimeoutId != null){
+			    clearTimeout(recogTimeoutId)			
+			};
+			speechText += results[i][0].transcript
+			if (i == results.length - 1){
+			    document.getElementById('speech_text').innerHTML = speechText
+			}
+			// document.getElementById('speech_text').innerHTML = results[event.resultIndex][0].transcript
+                    }
+                }
+            }
+            recognition.start();
+        }
+    </script> 
+</head>
+
+<body bgcolor="lightgreen">
+    <table id="tbl" border="0" width="100%" height="100%">
+      <tbody><tr><td id="tbl_td" width="100%" height="100%" valign="top" style="vertical-align: bottom;">
+        <div class="big" id="result_text" style="font-size: 30pt; color: white; font-weight: 900; text-align: center; -webkit-text-stroke: 1pt black;">
+            <div id="speech_text">
+                [Transcript here]
+            </div>
+            <div id="trans_text">
+                [Translation here]
+            </div>  
+        </div>
+    </td></tr>
+    </tbody></table>
+
+
+<!-- ############## 末尾のjavascript ############## -->
+<script type="text/javascript">
+// 表示スタイル変更 ---------------------------------
+    document.bgColor = "lightgreen";
+    document.getElementById("speech_text").style = "font-family: 'Noto Sans'; font-size: 20pt; color: white; font-weight: 900; text-align: center; vertical-align: v_align; -webkit-text-stroke: 0.9pt #3C3CB4;";
+    document.getElementById("trans_text").style = "font-family: 'M+ 2p black'; font-size: 25pt; color: white; font-weight: 900; text-align: center; vertical-align: v_align; -webkit-text-stroke: 1.2pt #3C3CB4;";
+</script>
+
+</body></html>
